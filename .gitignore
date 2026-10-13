@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# 运行时生成的数据（项目档案、笔记、临时目录）
+app/vault/*
+app/projects/*
+app/inbox/*
+!app/vault/.gitkeep
+!app/projects/.gitkeep
+!app/inbox/.gitkeep
+
+# 本地模型与运行时（不进仓库）
+models/
+ollama/
+python/
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.log

@@ -1,0 +1,6 @@
+# 数学笔记整理助手依赖（均为轻量免费库）
+# 注：本发布版已内置便携 Python 及以下依赖，正常使用无需自行安装。
+gradio>=4.0           # Web 操作面板
+requests>=2.31        # HTTP：调 Ollama + 必应联网搜索
+pdfplumber>=0.11      # PDF 解析
+python-docx>=1.1      # docx 解析
