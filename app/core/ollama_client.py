@@ -16,19 +16,28 @@ def _post(path, payload, timeout):
         return json.loads(r.read().decode("utf-8"))
 
 
-def chat(model, messages, timeout=None):
-    """messages: [{"role":"system"/"user"/"assistant","content":...}]。返回文本或 None。"""
+def chat(model, messages, timeout=None, think=None, fmt=None, options=None):
+    """messages: [{"role":"system"/"user"/"assistant","content":...}]。返回文本或 None。
+    think=False 关闭 qwen3 系列的思考（避免思考耗尽 token）；fmt="json" 强制 JSON 输出；
+    options 传 num_ctx / num_predict 等。"""
     timeout = timeout or config.CHAT_TIMEOUT
+    payload = {"model": model, "messages": messages, "stream": False}
+    if think is not None:
+        payload["think"] = think
+    if fmt:
+        payload["format"] = fmt
+    if options:
+        payload["options"] = options
     try:
-        resp = _post("/api/chat", {"model": model, "messages": messages, "stream": False}, timeout)
+        resp = _post("/api/chat", payload, timeout)
         return resp.get("message", {}).get("content")
     except Exception as e:
         print(f"  [ollama chat error] {model}: {e}")
         return None
 
 
-def chat_with_images(model, prompt, image_paths, timeout=None):
-    """带图片的对话（用于 OCR）。image_paths: 本地图片路径列表。返回文本或 None。"""
+def chat_with_images(model, prompt, image_paths, timeout=None, options=None):
+    """带图片的对话（用于 OCR）。image_paths: 本地图片路径列表（可只有1张）。返回文本或 None。"""
     timeout = timeout or config.OCR_TIMEOUT
     images = []
     for p in image_paths:
@@ -38,12 +47,16 @@ def chat_with_images(model, prompt, image_paths, timeout=None):
             print(f"  [read image error] {p}: {e}")
     if not images:
         return None
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt, "images": images}],
+        "stream": False,
+        "think": False,   # qwen3 系列思考会耗尽 token，OCR 必须关
+    }
+    if options:
+        payload["options"] = options
     try:
-        resp = _post("/api/chat", {
-            "model": model,
-            "messages": [{"role": "user", "content": prompt, "images": images}],
-            "stream": False,
-        }, timeout)
+        resp = _post("/api/chat", payload, timeout)
         return resp.get("message", {}).get("content")
     except Exception as e:
         print(f"  [ollama vl error] {model}: {e}")

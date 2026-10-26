@@ -128,9 +128,16 @@ def create_project_ui(name, background, structure, requirements):
 
 # ---------- 界面 ----------
 
+# 项目 logo（app/assets/logo.png）
+_LOGO_PATH = str(Path(__file__).parent / "assets" / "logo.png")
+
+
 def build_demo():
     with gr.Blocks(title="数学笔记整理助手") as demo:
-        gr.Markdown("# 数学笔记整理助手\n输入文件夹放：飞书妙计 txt、板书截图、老师资料 pdf/docx。可用项目来组织笔记归档与生成要求。")
+        with gr.Row():
+            gr.Markdown("# 数学笔记整理助手\n输入文件夹放：飞书妙计 txt、板书截图、老师资料 pdf/docx。可用项目来组织笔记归档与生成要求。", scale=4)
+            gr.Image(value=_LOGO_PATH, show_label=False, interactive=False,
+                     height=120, width=102, scale=1)
         full_state = gr.State("")
 
         with gr.Tabs():
@@ -146,7 +153,7 @@ def build_demo():
                 judge_btn = gr.Button("① 判断：清洗 + 提取话题", variant="primary")
                 status_box = gr.Textbox(label="状态 / 进度", lines=8, interactive=False)
 
-                gr.Markdown("### 话题清单（可编辑：增删话题、改名称/重要度，JSON 格式）")
+                gr.Markdown("### 话题清单（可编辑：增删话题、改名称/重要度/类型，JSON 格式。type: knowledge=知识笔记，exercise=习题讲解）")
                 topics_tb = gr.Textbox(label="topics JSON", lines=12, interactive=True)
 
                 run_btn = gr.Button("② 生成并写入 vault", variant="primary")

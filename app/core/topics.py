@@ -11,55 +11,64 @@ _TOPICS = (config.PROMPT_DIR / "topics.txt").read_text(encoding="utf-8")
 
 
 def _extract_one(chunk, project=None):
-    """单块提话题，返回 list[{name,summary,importance}]。失败返回 []。"""
+    """单块提话题，返回 list[{name,summary,importance}]。失败返回 []。
+    用 format=json 强制 JSON 输出 + 关闭 thinking，解析失败重试 1 次。"""
     system = _SYSTEM + "\n\n" + _TOPICS
     if project:
         system = proj_mod.project_prompt_block(project) + system
-    res = ollama_client.chat(config.TOPIC_MODEL, [
-        {"role": "system", "content": system},
-        {"role": "user", "content": chunk},
-    ])
-    if not res:
-        return []
-    # 去掉 ``` 包裹
-    s = res.strip()
-    if s.startswith("```"):
-        s = re.sub(r"^```[a-zA-Z]*\n", "", s)
-        s = re.sub(r"\n```$", "", s).strip()
-    data = None
-    try:
-        data = json.loads(s)
-    except Exception:
-        # 提取第一个 { 或 [  到最后一个 } 或 ]
-        m = re.search(r"[\{\[].*[\}\]]", s, re.DOTALL)
-        if m:
-            try:
-                data = json.loads(m.group(0))
-            except Exception:
-                pass
-    if data is None:
-        print("  [topics] JSON 解析失败，本块话题跳过")
-        return []
-    raw = data.get("topics", data) if isinstance(data, dict) else data
-    if not isinstance(raw, list):
-        return []
-    # 兼容字段：summary/description；importance 中英文
-    out = []
-    imp_map = {"core": "核心", "important": "重要", "know": "了解", "understanding": "了解"}
-    for t in raw:
-        if not isinstance(t, dict):
+    user = chunk + "\n\n（请只输出 JSON，不要输出任何解释或数学解答。）"
+    opts = {"num_ctx": 8192, "num_predict": 2048}
+    for attempt in (1, 2):
+        res = ollama_client.chat(config.TOPIC_MODEL, [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ], think=False, fmt="json", options=opts)
+        if not res:
             continue
-        name = (t.get("name") or "").strip()
-        if not name:
+        # 去掉 ``` 包裹
+        s = res.strip()
+        if s.startswith("```"):
+            s = re.sub(r"^```[a-zA-Z]*\n", "", s)
+            s = re.sub(r"\n```$", "", s).strip()
+        data = None
+        try:
+            data = json.loads(s)
+        except Exception:
+            # 提取第一个 { 或 [  到最后一个 } 或 ]
+            m = re.search(r"[\{\[].*[\}\]]", s, re.DOTALL)
+            if m:
+                try:
+                    data = json.loads(m.group(0))
+                except Exception:
+                    pass
+        if data is None:
+            print(f"  [topics] JSON 解析失败（第{attempt}次），本块响应: {s[:120]!r}")
             continue
-        imp = str(t.get("importance", "重要")).strip()
-        imp = imp_map.get(imp.lower(), imp if imp in ("核心", "重要", "了解") else "重要")
-        out.append({
-            "name": name,
-            "summary": t.get("summary") or t.get("description") or "",
-            "importance": imp,
-        })
-    return out
+        raw = data.get("topics", data) if isinstance(data, dict) else data
+        if not isinstance(raw, list):
+            continue
+        # 兼容字段：summary/description；importance 中英文
+        out = []
+        imp_map = {"core": "核心", "important": "重要", "know": "了解", "understanding": "了解"}
+        type_map = {"knowledge": "knowledge", "exercise": "exercise", "知识": "knowledge", "习题": "exercise", "例题": "exercise"}
+        for t in raw:
+            if not isinstance(t, dict):
+                continue
+            name = (t.get("name") or "").strip()
+            if not name:
+                continue
+            imp = str(t.get("importance", "重要")).strip()
+            imp = imp_map.get(imp.lower(), imp if imp in ("核心", "重要", "了解") else "重要")
+            tp = str(t.get("type", "knowledge")).strip()
+            tp = type_map.get(tp.lower(), "knowledge")
+            out.append({
+                "name": name,
+                "summary": t.get("summary") or t.get("description") or "",
+                "importance": imp,
+                "type": tp,
+            })
+        return out
+    return []
 
 
 def merge_topics(topic_lists):
