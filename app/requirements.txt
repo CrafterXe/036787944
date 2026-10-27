@@ -1,5 +1,5 @@
 # 数学笔记整理助手依赖（均为轻量免费库）
-# 注：本发布版已内置便携 Python 及以下依赖，正常使用无需自行安装。
+# 注：源码版需先安装以下依赖（pip install -r app/requirements.txt）；便携版已内置，无需安装。
 gradio>=4.0           # Web 操作面板
 requests>=2.31        # HTTP：调 Ollama + 必应联网搜索
 pdfplumber>=0.11      # PDF 解析

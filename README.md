@@ -41,7 +41,7 @@ python3 install.py
 1. 检查 Python 版本（≥3.10）
 2. 安装 Python 依赖（gradio / requests / pdfplumber / python-docx）
 3. 检查并安装 [Ollama](https://ollama.com)
-4. 下载模型 `qwen3:8b`（文本）和 `qwen3-vl:8b`（图片 OCR）
+4. 下载模型 `qwen3:8b`（文本）和 `qwen2.5vl:7b`（图片 OCR）
 
 > Ollama 若刚装好，可能需重新运行一次脚本让 PATH 生效。
 
@@ -110,7 +110,7 @@ python main.py run "<输入文件夹>"                # 用已有话题生成
 | Gradio | Web 操作面板 |
 | Ollama | 本地大模型推理服务 |
 | qwen3:8b | 文本清洗 / 提话题 / 生成 |
-| qwen3-vl:8b | 图片 OCR（板书截图→文字） |
+| qwen2.5vl:7b | 图片 OCR（板书截图→文字） |
 | pdfplumber / python-docx | PDF / Word 解析 |
 
 ## 常见问题

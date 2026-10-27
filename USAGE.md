@@ -162,9 +162,12 @@ python main.py run "D:\我的材料\20261012数分\输入" --topics topics.json
 
 ```python
 # === 模型 ===
-TEXT_MODEL   = "qwen3:8b"          # 文本生成模型
-VL_MODEL     = "qwen2.5vl:7b"      # 图片 OCR 模型
-OCR_MAX_SIDE = 1600                # OCR 前自动缩图最长边
+CLEAN_MODEL   = "qwen3:8b"         # 文本清洗
+TOPIC_MODEL   = "qwen3:8b"         # 话题提取
+GEN_MODEL     = "qwen3:8b"         # 逐话题生成（主用）
+SUMMARY_MODEL = "qwen3:8b"         # 总结
+VL_MODEL      = "qwen2.5vl:7b"     # 图片 OCR 模型
+OCR_MAX_SIDE  = 1600               # OCR 前自动缩图最长边
 OCR_JPEG_QUALITY = 85              # 缩图 JPEG 质量
 
 # === 功能开关 ===
@@ -177,15 +180,17 @@ GEN_NUMBERING = "2.1"              # 编号格式（节.序号）
 GEN_TONE      = "mixed"            # 语气：narrative / declarative / mixed
 GEN_FORMULA   = "inline"           # 公式：inline / centered
 GEN_NOTE      = "auto"             # 注的生成：auto / always / off
+GEN_EXERCISE_MODE = "solution_first"  # 习题讲解：直给式
+GEN_EXERCISE_NOTE = "auto"         # 习题讲解的注：auto / always / off
 
 # === 护栏 ===
-MIN_CHARS_AFTER_CLEAN = 0.5        # 清洗后长度低于原文 50% 则回退原文
+CLEAN_MIN_RATIO = 0.60             # 清洗后长度低于原文此比例则回退原文
 GEN_RETRY = 3                      # 单话题生成失败重试次数
 
 # === 路径（默认基于 __file__，可移植）===
-APP_DIR       = __file__ 所在目录
-VAULT_DIR     = APP_DIR / "vault"
-PROJECTS_DIR  = APP_DIR / "projects"
+ROOT          = Path(__file__).resolve().parent   # 即 app/ 目录
+VAULT_DIR     = ROOT / "vault"
+PROJECTS_DIR  = ROOT / "projects"
 ```
 
 ---

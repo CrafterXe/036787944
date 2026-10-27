@@ -5,7 +5,7 @@
   1. 检查 Python 版本（需 3.10+）
   2. 安装 Python 依赖（pip install -r app/requirements.txt）
   3. 检查 / 安装 Ollama（本地大模型服务）
-  4. 下载所需 AI 模型（qwen3:8b 文本、qwen3-vl:8b 图片 OCR）
+  4. 下载所需 AI 模型（qwen3:8b 文本、qwen2.5vl:7b 图片 OCR）
 
 用法：
   Windows  ：双击 install.bat   （或在终端执行  python install.py）
@@ -21,8 +21,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 REQUIREMENTS = ROOT / "app" / "requirements.txt"
 
-# 本程序实际用到的模型（见 app/config.py）
-MODELS = ["qwen3:8b", "qwen3-vl:8b"]
+# 本程序实际用到的模型（须与 app/config.py 一致）
+# qwen3:8b     → 文本：清洗 / 提话题 / 生成 / 总结
+# qwen2.5vl:7b → 图片 OCR（qwen3-vl:8b 强制思考会耗尽 token 致 OCR 返回空，已弃用）
+MODELS = ["qwen3:8b", "qwen2.5vl:7b"]
 
 IS_WIN = os.name == "nt"
 
@@ -171,6 +173,15 @@ def install_models():
                 all_ok = False
         except Exception as e:
             log(f"  [失败] 下载出错：{m}：{e}")
+            all_ok = False
+
+    # 收尾校验：确认所需模型都已出现在 ollama list 中
+    ok, out = run(["ollama", "list"])
+    if ok:
+        missing = [m for m in MODELS if m not in out]
+        for m in missing:
+            log(f"  [校验] 未检测到模型：{m}")
+        if missing:
             all_ok = False
     return all_ok
 
