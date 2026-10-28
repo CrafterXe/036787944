@@ -63,7 +63,12 @@ def sanitize_math(text):
     # 1. 去掉 $、$$、\[ \]、\( \)
     s = s.replace("$$", "").replace("$", "")
     s = s.replace(r"\[", "").replace(r"\]", "").replace(r"\(", "").replace(r"\)", "")
-    # 2. 递归处理嵌套 \frac{a}{b} → (a)/(b)；\sqrt[n]{x} → √[n](x)；\sqrt{x} → √(x)
+    # 2. 矩阵环境残留：\begin{vmatrix} … \end{vmatrix} → 方括号
+    s = re.sub(r"\\?begin\s*\{(?:vmatrix|matrix|pmatrix|bmatrix|Vmatrix|array)\}", "[", s)
+    s = re.sub(r"\\?end\s*\{(?:vmatrix|matrix|pmatrix|bmatrix|Vmatrix|array)\}", "]", s)
+    s = re.sub(r"\\?begin\s*\{[^{}]*\}", "", s)
+    s = re.sub(r"\\?end\s*\{[^{}]*\}", "", s)
+    # 3. 递归处理嵌套 \frac{a}{b} → (a)/(b)；\sqrt[n]{x} → √[n](x)；\sqrt{x} → √(x)
     prev = None
     while prev != s:
         prev = s

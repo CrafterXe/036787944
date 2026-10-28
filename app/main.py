@@ -101,7 +101,7 @@ def cmd_process(args):
         sys.exit(1)
     tops = confirm_topics(tops)
     print(f"\n[生成] 共 {len(tops)} 个话题，开始逐话题生成...")
-    markdown, urls = generate.build_notes(tops, full, project)
+    markdown, urls = generate.build_notes(tops, full, project, date=args.date)
     print("[写库] 保存到 vault...")
     path = vault.write_to_vault(markdown, tops, full, date=args.date, project=project)
     print(f"\n完成！笔记已保存：{path}")
@@ -124,7 +124,7 @@ def cmd_run(args):
     tops = json.loads((folder / "_topics.json").read_text(encoding="utf-8"))
     full = (folder / "_cleaned.txt").read_text(encoding="utf-8")
     tops = confirm_topics(tops)
-    markdown, urls = generate.build_notes(tops, full, project)
+    markdown, urls = generate.build_notes(tops, full, project, date=args.date)
     path = vault.write_to_vault(markdown, tops, full, date=args.date, project=project)
     print(f"\n完成！笔记已保存：{path}")
 

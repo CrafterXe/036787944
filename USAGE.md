@@ -174,14 +174,41 @@ OCR_JPEG_QUALITY = 85              # 缩图 JPEG 质量
 ENABLE_WEB_SEARCH = False          # 联网补充资料（默认关）
 
 # === 生成风格 ===
-GEN_STRUCTURE = ["定义", "定理", "证明", "注"]  # 板块顺序
+GEN_STRUCTURE = ["定义", "例", "定理", "证明", "注"]  # 章节内单元类型的参考顺序（实际按讲授顺序）
 GEN_PROOF_END = "证完"             # 证明结尾标记（或 "∎" / ""）
 GEN_NUMBERING = "2.1"              # 编号格式（节.序号）
 GEN_TONE      = "mixed"            # 语气：narrative / declarative / mixed
 GEN_FORMULA   = "inline"           # 公式：inline / centered
-GEN_NOTE      = "auto"             # 注的生成：auto / always / off
+GEN_NOTE      = "auto"             # 注的生成：auto / always / off（每节注上限 2 条）
+GEN_EXAMPLE   = "source_only"      # 例题：source_only=只收原文/课件真实出现的例题（禁止自编）
 GEN_EXERCISE_MODE = "solution_first"  # 习题讲解：直给式
 GEN_EXERCISE_NOTE = "auto"         # 习题讲解的注：auto / always / off
+
+# === 话题粒度与语义归一 ===
+TOPIC_MIN = 6                      # 一节正课期望的章节级话题数（软引导）
+TOPIC_MAX = 12
+ENABLE_TOPIC_MERGE = True          # 第二阶段语义归一（额外一次 LLM 调用）
+TOPIC_MERGE_MIN = 3                # 话题数达到此值就做归一
+TOPIC_MERGE_MODEL = "qwen3:8b"
+TOPIC_SPLIT_MIN = 2                # 章节数硬下限：归并后少于此值时沿 members 拆回
+
+# === 证明门控（P0）===
+PROOF_WINDOW_MAX = 1200            # 定理陈述后检测证明材料的窗口上限（字）
+# 材料中无推导过程的定理只生成「证明思路」，不生成「证明」
+
+# === 条目级去重（P1）===
+ITEM_DEDUP_THRESHOLD = 0.7         # 名称互为子串的条目正文相似度阈值（同名条目无条件直接合并）
+# 标题互为子串时，多出段是以下结构性后缀才允许合并，否则只加「参见」
+ITEM_MERGE_SUFFIX_WHITELIST = ["的定义", "的性质", "的展开", "的计算", "的应用", "的判定", "的求法"]
+
+# === 单章过长拆分（P2）===
+SECTION_SPLIT_CHARS = 5000         # 单章正文超此长度时尝试按 ### 条目拆回两节
+SECTION_SPLIT_MIN_PREFIX = 2000    # 拆分点之前至少要有这么长的内容
+
+# === 生成容量 ===
+GEN_MAX_TOKENS = 4000              # 单节最大生成 token
+CONTEXT_MAX_CHARS = 8000           # 单节参考资料上限
+GEN_MIN_CHARS = 600                # 正文短于此视为截断，自动重试
 
 # === 护栏 ===
 CLEAN_MIN_RATIO = 0.60             # 清洗后长度低于原文此比例则回退原文

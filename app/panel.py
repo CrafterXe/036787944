@@ -68,9 +68,9 @@ def do_run(folder, project_sel, topics_json, full, date):
     project = _resolve_project(project_sel)
     try:
         date = (date or "").strip() or None
-        md, urls = generate.build_notes(tops, full, project)
+        md, urls = generate.build_notes(tops, full, project, date=date)
         path = vault.write_to_vault(md, tops, full, date=date, project=project)
-        status = f"生成完成！{len(tops)} 个话题，参考来源 {len(urls)} 条。\n已保存：{path}"
+        status = f"生成完成！{len(tops)} 个章节，参考来源 {len(urls)} 条。\n已保存：{path}"
         return status, md, str(path)
     except Exception as e:
         return f"生成阶段出错：{e}", "", ""
