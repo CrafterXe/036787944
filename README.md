@@ -1,5 +1,7 @@
 # 数学笔记整理助手 (Math Notes Assistant)
 
+> 当前版本：**v1.1.4**（2026-10-28）
+
 一个**完全本地运行**的数学课堂笔记整理工具。把课程材料（飞书妙记转写 txt、板书截图、老师发的 pdf/docx）丢进一个文件夹，它会自动整理成**可读的讲义式 Markdown 笔记**：
 
 ```
@@ -14,6 +16,32 @@
 - **纯文本数学符号**：不使用 LaTeX，公式用 Unicode 符号（∀ ∃ → ∫ Σ θ 等）
 - **联网补全**：生成时可用必应搜索补充参考资料（默认关闭，失败自动降级）
 - **Web 面板 + 项目管理**：Gradio 操作面板，支持按"项目"组织笔记与生成要求
+- **后处理护栏**：公式清洗、假证完拦截、短段防碎片化、定理级去重（详见下节）
+
+## 文本后处理（v1.1.3 起定型）
+
+生成之后的排版阶段是一条确定性流水线，四类问题各有一组护栏函数：
+
+| 维度 | 关键实现 | 作用 |
+|---|---|---|
+| 公式清洗 | `sanitize.sanitize_math` | 去 LaTeX、裸词 `nmid → ∤`、符号归位（含转写丢反斜杠的情况） |
+| 假证明拦截 | `numbering.check_proof_integrity` | 证明过短 → 降级为「证明思路」；跳步 → 追加「推导过程略」提示 |
+| 防碎片化 | `numbering.merge_short_paragraphs`、`_cap_notes` | 纯文本短段并入前段；限制注/说明密度，不碰公式与列表 |
+| 去重 | `_dedupe`、`_dedupe_items_by_content`、`_dedupe_theorems_by_statement` | 跨节段落、同名条目、定理陈述句（LCS ≥ 0.8 + 否定护栏）三层去重 |
+| 编号 | `_number_section`、`_resolve_theorem_refs`、`_filter_bad_refs` | `§N` + 条目编号 + 目录；先删重复定理再编号，占位解析为「（同上：见 §X 定理 Y）」，不留编号空洞 |
+
+处理顺序：
+
+```
+逐节：去自带 H1 / 重复标题 → _demote_inner_h2 → check_proof_integrity
+      → merge_short_paragraphs → _cap_notes
+全局：_preprocess_items → _dedupe_theorems_by_statement
+      → semantic_dedupe_theorems（默认关闭）→ _number_section
+      → _dedupe_items_by_content → _resolve_theorem_refs
+      → _filter_bad_refs → _dedupe
+```
+
+`semantic_dedupe_theorems` 是**可选的**语义去重（额外一次 LLM 调用）：模型只负责提名等价分组，删块前还要通过确定性的假设/结论双重复核，任何一环失败都整轮跳过。默认关闭，仅作为处理极长废话转录时的备用选项。
 
 ## 生成的笔记长什么样
 
@@ -134,6 +162,7 @@ python main.py run "<输入文件夹>"                # 用已有话题生成
 | `SECTION_SPLIT_CHARS` | 5000 | 单章过长拆分阈值 |
 | `GEN_MAX_TOKENS` | 4000 | 单节生成 token 上限 |
 | `ENABLE_WEB_SEARCH` | False | 是否联网补充资料 |
+| `ENABLE_SEMANTIC_DEDUPE` | False | 定理语义去重（额外一次 LLM 调用，备用） |
 
 ## 项目结构
 

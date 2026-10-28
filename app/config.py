@@ -63,6 +63,11 @@ ITEM_DEDUP_THRESHOLD = 0.7   # 名称互为子串的条目正文相似度阈值�
 # 标题互为子串时，多出段整体是以下结构性后缀才允许合并（否则只加"参见"）
 ITEM_MERGE_SUFFIX_WHITELIST = ["的定义", "的性质", "的展开", "的计算", "的应用", "的判定", "的求法"]
 
+# ---- 定理语义去重（P3，可选，额外一次 LLM 调用）----
+ENABLE_SEMANTIC_DEDUPE = False   # 默认关闭；需要时设 True（跑基线时手动开启）
+SEMANTIC_DEDUPE_MODEL = "qwen3:8b"
+SEMANTIC_DEDUPE_TIMEOUT = 300    # 秒
+
 # ---- P2 章节回补与拆分 ----
 TOPIC_SPLIT_MIN = 2          # 章节数硬下限（独立于 TOPIC_MIN，避免回补退回碎章）
 SECTION_SPLIT_CHARS = 5000   # 单章过长阈值（字）
