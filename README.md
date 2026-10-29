@@ -1,6 +1,6 @@
 # 数学笔记整理助手 (Math Notes Assistant)
 
-> 当前版本：**v1.1.4**（2026-10-28）
+> 当前版本：**v1.2.1**（2026-10-29）
 
 一个**完全本地运行**的数学课堂笔记整理工具。把课程材料（飞书妙记转写 txt、板书截图、老师发的 pdf/docx）丢进一个文件夹，它会自动整理成**可读的讲义式 Markdown 笔记**：
 
@@ -17,6 +17,7 @@
 - **联网补全**：生成时可用必应搜索补充参考资料（默认关闭，失败自动降级）
 - **Web 面板 + 项目管理**：Gradio 操作面板，支持按"项目"组织笔记与生成要求
 - **后处理护栏**：公式清洗、假证完拦截、短段防碎片化、定理级去重（详见下节）
+- **日志追踪**：结构化日志带 run_id，一次"判断 → 生成"全程可串联；LLM 调用单独记录耗时与状态，方便排查"哪一章慢/是否重试"（详见下文"日志"一节）
 
 ## 文本后处理（v1.1.3 起定型）
 
@@ -84,6 +85,19 @@
 操作面板有两个标签页：
 - **整理**：填输入文件夹 → ① 判断（清洗 + 提取章节话题）→ 可编辑话题 → ② 生成并写入 vault
 - **项目管理**：建/改项目（名称、背景、结构、要求），项目的笔记单独归档
+
+## 日志（v1.2.1 起上线）
+
+运行日志写在 `app/logs/`（自动创建，已加入 `.gitignore`）：
+
+| 文件 | 内容 | 滚动策略 |
+|---|---|---|
+| `app.log` | 面板流程、各模块运行记录、面板提示，每条带 `[run_id][stage]` 前缀 | 10MB × 5 |
+| `llm.log` | 每次 Ollama 调用的元信息：`model / elapsed / prompt_chars / resp_chars / status / image_count` | 20MB × 3 |
+
+- 一次"判断 → 生成"共用同一 run_id，日志全程可串联；LLM 调用只记元信息，不记录 prompt 与响应正文
+- 日志目录基于程序所在目录自动定位，换机器不用改代码；只读部署时可设环境变量 `APP_LOG_DIR` 指到任意可写目录，目录不可写时自动回退系统临时目录
+- 开发者可在项目根运行 `python test_logging_e2e.py` 做日志端到端自检
 
 ## 系统要求
 
@@ -163,17 +177,20 @@ python main.py run "<输入文件夹>"                # 用已有话题生成
 | `GEN_MAX_TOKENS` | 4000 | 单节生成 token 上限 |
 | `ENABLE_WEB_SEARCH` | False | 是否联网补充资料 |
 | `ENABLE_SEMANTIC_DEDUPE` | False | 定理语义去重（额外一次 LLM 调用，备用） |
+| `APP_LOG_DIR`（环境变量） | 未设时用 `app/logs` | 日志输出目录，只读部署时指向任意可写目录 |
 
 ## 项目结构
 
 ```
 ├─ install.py / install.bat   一键安装
 ├─ launcher.py / 启动.bat     一键启动
+├─ test_logging_e2e.py        日志端到端自检脚本
 ├─ app/
 │   ├─ panel.py               Gradio 操作面板（主入口）
 │   ├─ main.py                命令行入口
 │   ├─ config.py              全局配置（模型、路径、粒度、容量等）
 │   ├─ requirements.txt       Python 依赖
+│   ├─ logs/                  【运行日志，自动生成】
 │   ├─ core/                  功能模块
 │   │   ├─ ingest.py          多格式读取归一（txt/md/pdf/docx/图片OCR）
 │   │   ├─ clean.py           清洗口语废话
@@ -183,6 +200,7 @@ python main.py run "<输入文件夹>"                # 用已有话题生成
 │   │   ├─ generate.py        逐章生成（含证明门控）+ 拼接
 │   │   ├─ numbering.py       编号 / 目录 / 跨节去重 / 过长拆分
 │   │   ├─ sanitize.py        数学符号规范化（去 LaTeX）
+│   │   ├─ logsetup.py        日志配置（run_id / 双文件滚动）
 │   │   ├─ project.py         项目管理
 │   │   ├─ vault.py           写库归档
 │   │   └─ ollama_client.py   Ollama 调用封装

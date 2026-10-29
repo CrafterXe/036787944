@@ -5,8 +5,11 @@
 """
 import re
 import urllib.parse
+import logging
 import requests
 import config
+
+_log = logging.getLogger("app.core.search")
 
 _HEADERS = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -48,8 +51,8 @@ def web_search(query, max_results=None):
     max_results = max_results or config.SEARCH_MAX_RESULTS
     try:
         return _bing_search(query, max_results)
-    except Exception as e:
-        print(f"  [search] 搜索失败，降级仅用原文: {e}")
+    except Exception:
+        _log.exception("搜索失败，降级仅用原文")
         return []
 
 

@@ -1,4 +1,5 @@
 """逐章节生成 + 排版拼接。每次只展开一个章节（防停笔），联网补全，末尾汇总参考来源。"""
+import logging
 import re
 from datetime import datetime
 
@@ -10,6 +11,8 @@ from . import vault as vault_mod
 from .sanitize import sanitize_math
 from .topics import keywords_of
 import config
+
+_log = logging.getLogger("app.core.generate")
 
 _SYSTEM = (config.PROMPT_DIR / "system.txt").read_text(encoding="utf-8")
 _GEN_TPL = (config.PROMPT_DIR / "generate.txt").read_text(encoding="utf-8")
@@ -51,7 +54,7 @@ def _strip_boilerplate(body):
             newb = b                      # 非注内容全被判为套话时保守保留
         blocks.append(newb)
     if removed:
-        print(f"  [gen] 删除 {removed} 句模板化套话")
+        _log.info("删除 %d 句模板化套话", removed)
     return "\n\n".join(blocks)
 
 
@@ -205,10 +208,10 @@ def gen_single_topic(topic, full_text, project=None, chunks=None):
         if res and len(res) >= config.GEN_MIN_CHARS:
             return res, urls
         if res:
-            print(f"  [gen] 章节「{name}」第{attempt}次仅 {len(res)} 字（疑似截断），重试...")
+            _log.info("章节「%s」第%d次仅 %d 字（疑似截断），重试...", name, attempt, len(res))
             prompt += "\n\n（上一次输出被截断，请从头完整写出本节，务必包含方法小结。）"
         else:
-            print(f"  [gen] 章节「{name}」第{attempt}次返回空，重试...")
+            _log.info("章节「%s」第%d次返回空，重试...", name, attempt)
     return f"> 该章节「{name}」未生成成功。\n", urls
 
 
@@ -261,7 +264,7 @@ def _split_long_sections(sections):
     for i, s in enumerate(out, 1):
         s["no"] = i
     if split_cnt:
-        print(f"  [gen] {split_cnt} 个超长章节已按条目拆回两节")
+        _log.info("%d 个超长章节已按条目拆回两节", split_cnt)
     return out
 
 
@@ -270,7 +273,7 @@ def build_notes(topics, full_text, project=None, chunks=None, date=None):
     返回 (markdown, 全部参考url)。"""
     sections, all_urls = [], []
     for i, t in enumerate(topics, 1):
-        print(f"  [gen] ({i}/{len(topics)}) {t['name']}...")
+        _log.info("(%d/%d) %s...", i, len(topics), t['name'])
         body, urls = gen_single_topic(t, full_text, project, chunks)
         sections.append({
             "no": i,

@@ -3,12 +3,15 @@
 设计参考原项目 assistant.py，全部基于 config.ROOT 相对路径，可移植。
 """
 import json
+import logging
 import re
 import shutil
 from datetime import datetime
 from pathlib import Path
 
 import config
+
+_log = logging.getLogger("app.core.project")
 
 
 def _sanitize(name):
@@ -43,7 +46,7 @@ def create_project(name, background="", structure="", requirements=""):
     (proj_dir / "project.json").write_text(
         json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     (config.VAULT_DIR / vault_folder).mkdir(parents=True, exist_ok=True)
-    print(f"[proj] 已建项目：{folder_name}，vault：{vault_folder}")
+    _log.info("已建项目：%s，vault：%s", folder_name, vault_folder)
     return data
 
 
@@ -119,7 +122,7 @@ def update_project(folder_name, new_name=None, background="",
     data["updated_at"] = datetime.now().isoformat(timespec="seconds")
     (proj_dir / "project.json").write_text(
         json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[proj] 已保存项目：{data.get('folder_name')}")
+    _log.info("已保存项目：%s", data.get('folder_name'))
     return data
 
 

@@ -2,6 +2,8 @@
 启动：python panel.py  （或由 start-all.bat 拉起）
 """
 import json
+import logging
+import uuid
 from pathlib import Path
 
 import gradio as gr
@@ -9,6 +11,10 @@ import gradio as gr
 import config
 from core import ingest, chunk, clean, topics as topics_mod, generate, vault
 from core import project as proj_mod
+from core import logsetup
+
+logsetup.configure_logging()
+_flow = logging.getLogger("app.flow")
 
 _NONE = "（不使用项目）"
 
@@ -23,12 +29,18 @@ def _resolve_project(project_sel):
 
 
 def do_judge(folder, project_sel):
-    """第一步：读取 → 清洗 → 提话题。返回 (状态文本, 话题JSON文本, full_text)。"""
+    """第一步：读取 → 清洗 → 提话题。返回 (状态文本, 话题JSON文本, full_text, run_id)。"""
+    # 每次「判断」都开新 run_id，经回写 state 供 do_run 复用（judge→run 串联）
+    rid = uuid.uuid4().hex[:12]
+    logsetup.set_run_id(rid)
+    logsetup.set_stage("judge")
+    _flow.info("run started: stage=judge run_id=%s folder=%s project=%s",
+               rid, folder, project_sel)
     folder = (folder or "").strip()
     if not folder:
-        return "请先填写输入文件夹路径。", "", ""
+        return "请先填写输入文件夹路径。", "", "", rid
     if not Path(folder).is_dir():
-        return f"文件夹不存在：{folder}", "", ""
+        return f"文件夹不存在：{folder}", "", "", rid
     project = _resolve_project(project_sel)
     try:
         logs = []
@@ -47,33 +59,43 @@ def do_judge(folder, project_sel):
         tops = topics_mod.propose_topics(cl, full, project)
         logs.append(f"      共 {len(tops)} 个话题。")
         if not tops:
-            return "\n".join(logs) + "\n未提取到话题。", "", full
+            return "\n".join(logs) + "\n未提取到话题。", "", full, rid
         topics_json = json.dumps(tops, ensure_ascii=False, indent=2)
         status = "\n".join(logs) + f"\n\n已提取 {len(tops)} 个话题，可在下方编辑后生成。"
-        return status, topics_json, full
+        return status, topics_json, full, rid
     except Exception as e:
-        return f"判断阶段出错：{e}", "", ""
+        _flow.exception("judge stage failed: folder=%s", folder)
+        return f"判断阶段出错：{e}", "", "", rid
 
 
-def do_run(folder, project_sel, topics_json, full, date):
-    """第二步：用话题生成笔记并写入 vault。返回 (状态, 笔记预览, 输出路径)。"""
+def do_run(folder, project_sel, topics_json, full, date, run_id_state):
+    """第二步：用话题生成笔记并写入 vault。返回 (状态, 笔记预览, 输出路径, run_id)。"""
+    # run_id 跨请求关联：state 已有值则复用（没先点判断就点生成时新建）
+    prev = (run_id_state or "").strip()
+    rid = prev or uuid.uuid4().hex[:12]
+    logsetup.set_run_id(rid)
+    logsetup.set_stage("run")
+    _flow.info("run started: stage=run run_id=%s(%s) folder=%s project=%s",
+               rid, "reused" if prev else "new", folder, project_sel)
     if not full:
-        return "请先执行第一步「判断」。", "", ""
+        return "请先执行第一步「判断」。", "", "", rid
     try:
         tops = json.loads(topics_json)
         if not isinstance(tops, list) or not tops:
-            return "话题为空或格式错误，请先判断。", "", ""
+            return "话题为空或格式错误，请先判断。", "", "", rid
     except Exception as e:
-        return f"话题 JSON 解析失败：{e}", "", ""
+        _flow.exception("run stage failed: topics json parse error")
+        return f"话题 JSON 解析失败：{e}", "", "", rid
     project = _resolve_project(project_sel)
     try:
         date = (date or "").strip() or None
         md, urls = generate.build_notes(tops, full, project, date=date)
         path = vault.write_to_vault(md, tops, full, date=date, project=project)
         status = f"生成完成！{len(tops)} 个章节，参考来源 {len(urls)} 条。\n已保存：{path}"
-        return status, md, str(path)
+        return status, md, str(path), rid
     except Exception as e:
-        return f"生成阶段出错：{e}", "", ""
+        _flow.exception("run stage failed: folder=%s", folder)
+        return f"生成阶段出错：{e}", "", "", rid
 
 
 # ---------- 项目管理 ----------
@@ -143,6 +165,7 @@ def build_demo():
         with gr.Tabs():
             # ===== Tab 1：整理 =====
             with gr.Tab("整理"):
+                run_id_state = gr.State("")  # judge→run 跨请求共用的 run_id
                 proj_dd = gr.Dropdown(label="选择项目（可选）", choices=[_NONE],
                                       value=_NONE, interactive=True)
                 with gr.Row():
@@ -161,9 +184,9 @@ def build_demo():
                 preview = gr.Markdown(label="笔记预览")
 
                 judge_btn.click(do_judge, inputs=[folder_tb, proj_dd],
-                                outputs=[status_box, topics_tb, full_state])
-                run_btn.click(do_run, inputs=[folder_tb, proj_dd, topics_tb, full_state, date_tb],
-                              outputs=[status_box, preview, out_path])
+                                outputs=[status_box, topics_tb, full_state, run_id_state])
+                run_btn.click(do_run, inputs=[folder_tb, proj_dd, topics_tb, full_state, date_tb, run_id_state],
+                              outputs=[status_box, preview, out_path, run_id_state])
 
             # ===== Tab 2：项目管理 =====
             with gr.Tab("项目管理"):

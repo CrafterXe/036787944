@@ -1,4 +1,5 @@
 """全局配置。所有路径基于项目根目录动态计算，保证可移植。"""
+import os
 from pathlib import Path
 
 # 项目根目录：本文件所在目录（math-notes/）
@@ -9,6 +10,16 @@ VAULT_DIR = ROOT / "vault"        # 笔记落盘处
 INBOX_DIR = ROOT / "inbox"        # 每次处理的临时工作目录
 PROMPT_DIR = ROOT / "prompts"     # 提示词模板
 PROJECTS_DIR = ROOT / "projects"  # 项目档案（每个项目一个子文件夹，内含 project.json）
+
+# 日志目录：默认 app/logs（ROOT 由 Path(__file__) 锚定，即本文件所在 app/ 目录，
+# 换机器/换盘符无需改代码）。只读部署可用环境变量 APP_LOG_DIR 覆盖到任意可写目录。
+# 目录创建与失败回退在 core/logsetup.configure_logging() 内、创建 handler 之前完成。
+DEFAULT_LOG_DIR = ROOT / "logs"
+LOG_DIR = Path(os.environ["APP_LOG_DIR"]) if os.environ.get("APP_LOG_DIR") else DEFAULT_LOG_DIR
+
+# 日志级别（开发者用）
+LOG_LEVEL = "INFO"        # app.flow / app.core / app.guard / root
+LLM_LOG_LEVEL = "DEBUG"   # app.llm（单独记录所有 LLM 调用）
 
 # 本地 Ollama 服务
 OLLAMA_HOST = "http://localhost:11434"
@@ -100,5 +111,5 @@ GEN_EXERCISE_NOTE = "auto"
 # 输出文件命名日期格式：YYYYMMDD
 DATE_FMT = "%Y%m%d"
 
-for _d in (VAULT_DIR, INBOX_DIR, PROJECTS_DIR):
+for _d in (VAULT_DIR, INBOX_DIR, PROJECTS_DIR):   # LOG_DIR 由 logsetup 创建（含只读回退）
     _d.mkdir(parents=True, exist_ok=True)

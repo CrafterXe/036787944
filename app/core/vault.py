@@ -1,10 +1,13 @@
 """写库：推断标题，命名 YYYYMMDD_课程_主题。
 无项目时存入 vault/ 根目录；指定项目时存入 vault/<项目归档文件夹>/。
 """
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
 import config
+
+_log = logging.getLogger("app.core.vault")
 
 
 def _infer_course(text):
@@ -59,5 +62,5 @@ def write_to_vault(markdown, topics, full_text, date=None, project=None):
         path = folder / f"{date}_{course}_{_safe(title)}_{i}.md"
         i += 1
     path.write_text(markdown, encoding="utf-8")
-    print(f"  [vault] 已写入: {path}")
+    _log.info("已写入: %s", path)
     return path

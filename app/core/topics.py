@@ -1,11 +1,14 @@
 """话题提取：逐块提章节级主题 → 名称合并 → LLM 语义归一 → 带证据引用。"""
 import json
+import logging
 import re
 from difflib import SequenceMatcher
 
 from . import ollama_client
 from . import project as proj_mod
 import config
+
+_log = logging.getLogger("app.core.topics")
 
 _SYSTEM = (config.PROMPT_DIR / "system.txt").read_text(encoding="utf-8")
 _TOPICS = (config.PROMPT_DIR / "topics.txt").read_text(encoding="utf-8")
@@ -46,7 +49,7 @@ def _extract_one(chunk, project=None):
             continue
         data = _loads_json(res)
         if data is None:
-            print(f"  [topics] JSON 解析失败（第{attempt}次），本块响应: {res[:120]!r}")
+            _log.info("JSON 解析失败（第%d次），本块响应: %r", attempt, res[:120])
             continue
         raw = data.get("topics", data) if isinstance(data, dict) else data
         if not isinstance(raw, list):
@@ -163,7 +166,7 @@ def normalize_topics(topics, project=None):
     system = _SYSTEM + "\n\n你是讲义的结构编辑，只输出 JSON。"
     if project:
         system = proj_mod.project_prompt_block(project) + system
-    print(f"  [topics] 语义归并：{n} 个碎片话题 → 章节级主题...")
+    _log.info("语义归并：%d 个碎片话题 → 章节级主题...", n)
     res = ollama_client.chat(config.TOPIC_MERGE_MODEL, [
         {"role": "system", "content": system},
         {"role": "user", "content": prompt},
@@ -172,7 +175,7 @@ def normalize_topics(topics, project=None):
     data = _loads_json(res) if res else None
     chapters = (data or {}).get("chapters") if isinstance(data, dict) else None
     if not isinstance(chapters, list) or not chapters:
-        print("  [topics] 语义归并失败，保留原话题列表。")
+        _log.info("语义归并失败，保留原话题列表。")
         return topics, n
 
     # 建立 原话题名 → 话题 dict 的索引
@@ -224,9 +227,9 @@ def normalize_topics(topics, project=None):
     for t in leftover:
         merged.append({**t, "members": [t["name"]]})
     if leftover:
-        print(f"  [topics] 有 {len(leftover)} 个话题未被归并，保留为独立章节。")
+        _log.info("有 %d 个话题未被归并，保留为独立章节。", len(leftover))
 
-    print(f"  [topics] 归并结果：{n} → {len(merged)} 个章节")
+    _log.info("归并结果：%d → %d 个章节", n, len(merged))
     return merged, n
 
 
@@ -313,7 +316,7 @@ def coalesce_by_evidence(topics):
         if len(ev) > len(hit.get("evidence", "")):
             hit["evidence"] = ev
     if merged:
-        print(f"  [topics] 证据重合，合并 {merged} 个同源话题")
+        _log.info("证据重合，合并 %d 个同源话题", merged)
     return out
 
 
@@ -344,8 +347,8 @@ def _split_back_to_min(topics, full_text):
         t1["evidence"] = evidence_quote(t1, full_text)
         t2["evidence"] = evidence_quote(t2, full_text)
         topics[i:i + 1] = [t1, t2]
-        print(f"  [topics] 章节数低于下限 {config.TOPIC_SPLIT_MIN}，"
-              f"拆分「{t['name']}」→「{t1['name']}」+「{t2['name']}」")
+        _log.info("章节数低于下限 %d，拆分「%s」→「%s」+「%s」",
+                  config.TOPIC_SPLIT_MIN, t['name'], t1['name'], t2['name'])
     return topics
 
 
@@ -353,14 +356,14 @@ def propose_topics(chunks, full_text, project=None):
     """逐块提话题 → 名称合并 → 语义归一 → 附加证据 → 证据重合合并 → 回补下限。返回话题列表。"""
     all_lists = []
     for i, c in enumerate(chunks, 1):
-        print(f"  [topics] 块 {i}/{len(chunks)}...")
+        _log.info("块 %d/%d...", i, len(chunks))
         all_lists.append(_extract_one(c, project))
     topics = merge_topics(all_lists)
-    print(f"  [topics] 初步提取 {len(topics)} 个话题（已按名称合并）")
+    _log.info("初步提取 %d 个话题（已按名称合并）", len(topics))
     topics, before = normalize_topics(topics, project)
     for t in topics:
         t["evidence"] = evidence_quote(t, full_text)
     topics = coalesce_by_evidence(topics)
     topics = _split_back_to_min(topics, full_text)
-    print(f"  [topics] 共 {len(topics)} 个章节（归并前 {before} 个）")
+    _log.info("共 %d 个章节（归并前 %d 个）", len(topics), before)
     return topics

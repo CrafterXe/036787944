@@ -1,9 +1,12 @@
 """多格式输入归一为纯文本：txt/md/pdf/docx/图片(OCR)。"""
+import logging
 import os
 import tempfile
 from pathlib import Path
 from . import ollama_client, sanitize
 import config
+
+_log = logging.getLogger("app.core.ingest")
 
 TEXT_EXTS = {".txt", ".md"}
 
@@ -56,8 +59,8 @@ def _prepare_image(path):
         tmp = os.path.join(tempfile.gettempdir(), f"mn_ocr_{Path(path).stem}.jpg")
         im.save(tmp, "JPEG", quality=config.OCR_JPEG_QUALITY)
         return tmp
-    except Exception as e:
-        print(f"  [image resize skip] {path}: {e}")
+    except Exception:
+        _log.exception("图片缩放跳过: %s", path)
         return str(path)
 
 
@@ -90,7 +93,7 @@ def ingest_folder(folder):
     if not has_direct:
         for sub in sorted(folder.iterdir()) if folder.is_dir() else []:
             if sub.is_dir() and sub.name == "输入":
-                print(f"  [ingest] 当前目录无材料，自动下钻到子目录：{sub}")
+                _log.info("当前目录无材料，自动下钻到子目录：%s", sub)
                 folder = sub
                 break
     texts = []
@@ -110,7 +113,7 @@ def ingest_folder(folder):
         elif ext in (".jpg", ".jpeg", ".png", ".webp"):
             images.append(p)
     if images:
-        print(f"  [OCR] 处理 {len(images)} 张图片...")
+        _log.info("处理 %d 张图片...", len(images))
         ocr = ocr_images(images)
         if ocr:
             texts.append("### 图片 OCR 内容\n" + ocr)

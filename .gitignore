@@ -26,3 +26,6 @@ desktop.ini
 .idea/
 .vscode/
 *.log
+
+# 开发者运行日志
+app/logs/

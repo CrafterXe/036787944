@@ -4,10 +4,14 @@
 因此编号统一由本模块按章节顺序重排，正文中的引用同步替换。
 """
 import json
+import logging
 import re
 from difflib import SequenceMatcher
 
 import config
+
+_guard = logging.getLogger("app.guard")
+_log = logging.getLogger("app.core.numbering")
 
 # 需要编号的条目类型（"注"按参考文档惯例不编号）
 NUMBERED = ("定义", "定理", "性质", "命题", "引理", "推论", "例")
@@ -93,7 +97,9 @@ def _cap_notes(body, limit=2):
                 continue
         out.append(ln)
     if converted:
-        print(f"  [numbering] {converted} 条注超出每节上限，转为正文说明")
+        _guard.info("converted=%d", converted,
+                    extra={"func": "_cap_notes", "action": "demote",
+                           "reason": "exceed_per_section_limit"})
     return "\n".join(out)
 
 
@@ -157,9 +163,9 @@ def _dedupe(sections):
                 out.append(p)
         sec["body"] = "\n\n".join(out)
     if hit:
-        print(f"  [numbering] 跨节去重：处理 {hit} 段重复/悬空内容")
+        _log.info("跨节去重：处理 %d 段重复/悬空内容", hit)
     if kept:
-        print(f"  [numbering] 同节重复 {kept} 段按原文保留（不生成占位符）")
+        _log.info("同节重复 %d 段按原文保留（不生成占位符）", kept)
     return sections
 
 
@@ -203,7 +209,7 @@ def merge_short_paragraphs(text, min_chars=30):
             out.append(p)
             i += 1
     if merged:
-        print(f"  [numbering] 碎片化合并：{merged} 个短段并入前段")
+        _log.info("碎片化合并：%d 个短段并入前段", merged)
     return "\n\n".join(out)
 
 
@@ -257,7 +263,9 @@ def check_proof_integrity(text, min_proof=40, skip_limit=150):
             out.append(p)                # 合格证明：只追加首段，正文段按原样逐个处理
             i += 1
     if cnt_a or cnt_b:
-        print(f"  [numbering] 证明校验：{cnt_a} 个降级为思路，{cnt_b} 个标记推导略")
+        _guard.info("cnt_downgrade=%d cnt_skip_marker=%d", cnt_a, cnt_b,
+                    extra={"func": "check_proof_integrity", "action": "downgrade",
+                           "reason": "proof_too_short_or_lacks_derivation"})
     return "\n\n".join(out)
 
 
@@ -301,7 +309,9 @@ def _filter_bad_refs(sections):
             out.append(ln)
         sec["body"] = "\n".join(out)
     if dropped:
-        print(f"  [numbering] 删除 {dropped} 条引用了不存在条目的说明")
+        _guard.info("dropped=%d", dropped,
+                    extra={"func": "_resolve_refs", "action": "drop",
+                           "reason": "referenced_item_missing"})
     return sections
 
 
@@ -411,9 +421,11 @@ def _preprocess_items(sections):
         sections[si]["body"] = "\n\n".join(
             b.strip("\n") for bi, b in enumerate(blocks) if (si, bi) not in drop_set)
     if dropped_proof:
-        print(f"  [numbering] 删除 {dropped_proof} 个定义后面硬凑的证明")
+        _guard.info("dropped=%d", dropped_proof,
+                    extra={"func": "_dedupe_items_by_content", "action": "drop",
+                           "reason": "fake_proof_after_definition"})
     if merged_cnt:
-        print(f"  [numbering] 同名条目合并 {merged_cnt} 个（正文并集已并入首次出现处）")
+        _log.info("同名条目合并 %d 个（正文并集已并入首次出现处）", merged_cnt)
     return sections
 
 
@@ -512,9 +524,9 @@ def _dedupe_items_by_content(sections):
                 new.append(b)
         sections[si]["body"] = "\n\n".join(x.strip("\n") for x in new)
     if merged_cnt:
-        print(f"  [numbering] 类型内去重：合并 {merged_cnt} 个跨节重复条目")
+        _log.info("类型内去重：合并 %d 个跨节重复条目", merged_cnt)
     if ref_cnt:
-        print(f"  [numbering] {ref_cnt} 个相关条目加注「参见」")
+        _log.info("%d 个相关条目加注「参见」", ref_cnt)
     return sections
 
 
@@ -666,7 +678,9 @@ def _dedupe_theorems_by_statement(sections):
             else:
                 new.append(b)
         sections[si]["body"] = "\n\n".join(x.strip("\n") for x in new)
-    print(f"  [numbering] 定理陈述句去重：合并 {merged} 个重复定理（含其证明）")
+    _guard.info("merged=%d", merged,
+                extra={"func": "_dedupe_theorems_by_statement", "action": "merge",
+                       "reason": "duplicate_theorem_statement"})
     return sections
 
 
@@ -806,20 +820,22 @@ def semantic_dedupe_theorems(sections):
             options={"num_ctx": 8192, "num_predict": 1200},
         )
     except Exception as e:
-        print(f"  [numbering] 语义去重跳过：调用异常（{e}）")
+        _guard.exception("",
+                         extra={"func": "semantic_dedupe_theorems", "action": "skip",
+                                "reason": "llm_call_exception"})
         return sections
     if not res:
-        print("  [numbering] 语义去重跳过：模型无响应")
+        _log.info("语义去重跳过：模型无响应")
         return sections
     groups = _parse_groups(res)
     if groups is None:
-        print("  [numbering] 语义去重跳过：JSON 解析失败")
+        _log.info("语义去重跳过：JSON 解析失败")
         return sections
 
     by_id = {it["id"]: it for it in items}
     unknown = [g for g in groups if any(x not in by_id for x in g)]
     if unknown:
-        print(f"  [numbering] 语义去重跳过：分组含原文找不到的编号 {unknown[0]}")
+        _log.info("语义去重跳过：分组含原文找不到的编号 %s", unknown[0])
         return sections
 
     replaced, drop, merged, skipped = {}, set(), 0, 0
@@ -837,7 +853,7 @@ def semantic_dedupe_theorems(sections):
             ok, why = _equiv_ok(keep["key"], cur["key"])
             if not ok:
                 skipped += 1
-                print(f"  [numbering] 语义去重否决：{keep['id']} × {cur['id']}（{why}）")
+                _log.info("语义去重否决：%s × %s（%s）", keep['id'], cur['id'], why)
                 continue
             replaced[(cur["si"], cur["bi"])] = _MARK % (keep["si"], keep["bi"])
             k = cur["bi"] + 1
@@ -851,10 +867,11 @@ def semantic_dedupe_theorems(sections):
             kept_pairs.append((cur["id"], keep["id"]))
             merged += 1
         if kept_pairs:
-            print(f"  [numbering] 语义去重：{'、'.join(a for a, _ in kept_pairs)} → 并入 {keep['id']}")
+            _log.info("语义去重：%s → 并入 %s",
+                      '、'.join(a for a, _ in kept_pairs), keep['id'])
 
     if not merged:
-        print("  [numbering] 语义去重：无可合并项")
+        _log.info("语义去重：无可合并项")
         return sections
     for si, blocks in enumerate(sec_blocks):
         new = []
@@ -866,8 +883,8 @@ def semantic_dedupe_theorems(sections):
             else:
                 new.append(b)
         sections[si]["body"] = "\n\n".join(x.strip("\n") for x in new)
-    print(f"  [numbering] 语义去重：合并 {merged} 个重复定理（含其证明）"
-          + (f"，否决 {skipped} 组" if skipped else ""))
+    _log.info("语义去重：合并 %d 个重复定理（含其证明）%s",
+              merged, f"，否决 {skipped} 组" if skipped else "")
     return sections
 
 
@@ -882,13 +899,13 @@ def _resolve_theorem_refs(sections):
         nonlocal cnt
         si, bi = int(m.group(1)), int(m.group(2))
         if si >= len(blocks_cache) or bi >= len(blocks_cache[si]):
-            print("  [numbering] 警告：定理引用目标已不存在，降级为「（同上）」")
+            _log.warning("定理引用目标已不存在，降级为「（同上）」")
             return "（同上）"
         h = blocks_cache[si][bi].split("\n", 1)[0].strip()
         mh = _BLOCK_HEAD.match(h)
         mi = _DEDUP_ITEM_HEAD.match(mh.group(1).strip()) if mh else None
         if not mi:
-            print("  [numbering] 警告：定理引用目标已非定理块，降级为「（同上）」")
+            _log.warning("定理引用目标已非定理块，降级为「（同上）」")
             return "（同上）"
         cnt += 1
         return f"（同上：见 §{sections[si]['no']} {mi.group(1)} {mi.group(2)}）"
@@ -896,7 +913,7 @@ def _resolve_theorem_refs(sections):
     for sec in sections:
         sec["body"] = re.sub(r"\x02THM:(\d+):(\d+)\x03", repl, sec["body"])
     if cnt:
-        print(f"  [numbering] 解析定理交叉引用 {cnt} 处")
+        _log.info("解析定理交叉引用 %d 处", cnt)
     return sections
 
 
